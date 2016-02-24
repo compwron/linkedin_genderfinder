@@ -1,5 +1,6 @@
 require "json"
 require "csv"
+require "pry"
 
 names = []
 file = "linkedin_connections_export_microsoft_outlook.csv"
@@ -9,11 +10,15 @@ end
 
 api = "https://api.genderize.io/?name="
 
-name_results = File.open("results.txt", "w")
+name_results = File.open("results.txt", "a+")
+names_in_file = name_results.readlines.map {|l| JSON.parse(l)["name"]}
 json_results = []
 names.each {|n|
   unless n == "First Name"
     n = n.split(" ").first
+    if names_in_file.include?(n)
+      next
+    end
     res = `curl --silent #{api}#{n}`
     json_results << res # write to file because the API is slow and we don't want to have to do this twice.
     name_results.puts res
@@ -26,22 +31,16 @@ names.each {|n|
 name_results.close
 
 json_results = File.readlines("results.txt")
-json_scared = []
 gs = json_results.map {|l|
-  begin
-    json = JSON.parse(l)
-  rescue JSON::ParserError => e
-    json_scared << l
-    {}
-  end
+  json = JSON.parse(l)
   {json["name"] => json["gender"]}
 }.inject(&:merge)
-p gs
+
 female_count = gs.values.select{ |g| g == "female" }.count
 male_count = gs.values.select{ |g| g == "male" }.count
 other_names = gs.select { |k, v| !["female", "male"].include?(v) }
 
-p json_scared
 puts "female_count", female_count
 puts "male_count", male_count
-puts other_names
+puts "genderize doesn't know", other_names.count
+
